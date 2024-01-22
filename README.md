@@ -8,16 +8,20 @@ Information Extraction: Extracts key details like name, title, company, phone nu
 Customizable Output: Save extracted information in various formats like text files, spreadsheets, or databases.
 User-friendly Interface: (Optional) Develop a user interface (e.g., web app) for uploading images and viewing extracted data.
 Getting Started
+
 1. Install Requirements:
 
 pip install easyocr pillow opencv-python
+
 2. Run the Script:
 
 python bizcard.py
+
 3. Upload Image:
 
 The script will prompt you to upload an image of a business card.
 You can also modify the script to accept image paths directly.
+
 4. Extracted Data:
 
 The script will display the extracted contact information on the console.
@@ -34,6 +38,7 @@ Contributing
 We welcome contributions to improve BizCard. Feel free to fork the repository, raise issues, or submit pull requests with your additions.
 
 Disclaimer
+
 This is a basic framework for business card information extraction. Accuracy may vary depending on the quality of images and card design. Consider extending the script and implementing additional features for more robust results.
 
 We hope BizCard helps you stay organized and connected with your professional network!
