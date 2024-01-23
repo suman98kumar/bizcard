@@ -45,4 +45,4 @@ Additional notes:
 You can personalize this readme file with your project name and specific features.
 Consider adding screenshots or visuals to showcase the features of BizCard Extract.
 Remember to update the instructions based on your script and configuration options.
-I hope this helps! Let me know if you have any other questions.
+I hope this helps! 
