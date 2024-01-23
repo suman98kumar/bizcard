@@ -1,341 +1,293 @@
-import psycopg2
-import pandas as pd
-import streamlit as st
-from streamlit_option_menu import option_menu
-import easyocr
 from PIL import Image
-import cv2
-import os
-import matplotlib.pyplot as plt
+import pytesseract
+import pandas as pd
+import numpy as np
 import re
+import io
+import streamlit as st
+import psycopg2
+from psycopg2 import sql
 
-# SETTING PAGE CONFIGURATIONS
+# Set Tesseract executable path (update this path based on your Tesseract installation)
+pytesseract.pytesseract.tesseract_cmd = r'C:\Program Files\Tesseract-OCR\tesseract.exe'
 
-st.set_page_config(page_title="BizCardX: Extracting Business Card Data with OCR | By Sumankumar",
-                   page_icon="▶",
-                   layout="wide",
-                   initial_sidebar_state="expanded",
-                   menu_items={'About': """# This OCR app is created by *Sumankumar*!"""})
-st.markdown("<h1 style='text-align: center; color: white;'>BizCardX: Extracting Business Card Data with OCR</h1>", unsafe_allow_html=True)
-
-# SETTING-UP BACKGROUND IMAGE
-def setting_bg():
-    st.markdown(f""" 
-    <style>
-        .stApp {{
-            background: linear-gradient(to right, ##11110f, ##d0d020);
-            background-size: cover;
-            transition: background 0.5s ease;
-        }}
-        h1,h2,h3,h4,h5,h6 {{
-            color: #f3f3f3;
-            font-family: 'Arial', sans-serif;
-        }}
-        .stButton>button {{
-            color: #4e4376;
-            background-color: #f3f3f3;
-            transition: all 0.3s ease-in-out;
-        }}
-        .stButton>button:hover {{
-            color: #f3f3f3;
-            background-color: #2b5876;
-        }}
-        .stTextInput>div>div>input {{
-            color: #4e4376;
-            background-color: #f3f3f3;
-        }}
-    </style>
-    """,unsafe_allow_html=True) 
-setting_bg()
-
-# CREATING OPTION MENU
-selected = option_menu(None, ["Home","Upload & Extract","Modify"], 
-                       icons=["home","cloud-upload-alt","edit"],
-                       default_index=0,
-                       orientation="horizontal",
-                       styles={"nav-link": {"font-size": "25px", "text-align": "centre", "margin": "0px", "--hover-color": "#AB63FA", "transition": "color 0.3s ease, background-color 0.3s ease"},
-                               "icon": {"font-size": "25px"},
-                               "container" : {"max-width": "6000px", "padding": "10px", "border-radius": "5px"},
-                               "nav-link-selected": {"background-color": "#AB63FA", "color": "white"}})
-
-
-
-# INITIALIZING THE EasyOCR READER
-reader = easyocr.Reader(['en'])
-
-# CONNECTING WITH MYSQL DATABASE
-mydb=psycopg2.connect(host="localhost",    
-                    user= "postgres",
-                    password="Sugu1234",
-                    database="bizcard",
-                    port="5432")  #Connecting to SQL server 
-
-mycursor=mydb.cursor()
-
-# TABLE CREATION
-mycursor.execute('''CREATE TABLE IF NOT EXISTS card_data
-                   (id SERIAL PRIMARY KEY,
-                    company_name TEXT,
-                    card_holder TEXT,
-                    designation TEXT,
-                    mobile_number VARCHAR(50),
-                    email TEXT,
-                    website TEXT,
-                    area TEXT,
-                    city TEXT,
-                    state TEXT,
-                    pin_code VARCHAR(10),
-                    image BYTEA
-                    )''')
-
-
-# HOME MENU
-if selected == "Home":
-    col1,col2 = st.columns(2)
-    with col1:
-        st.markdown("## :green[**Technologies Used :**] Python,easy OCR, Streamlit, SQL, Pandas")
-        st.markdown("## :green[**Overview :**] BizCardX is a user-friendly tool designed for effortless extraction of information from business cards, leveraging the power of Optical Character Recognition (OCR) through the EasyOCR Python library. This project simplifies the OCR process with its straightforward installation, minimal dependencies, and easy integration into your development environment.")
-    with col2:
-        st.image("biz.jpg")
-               
-# HOME MENU
-if selected == "Upload & Extract":
-    st.markdown("### Upload a Business Card")
-    uploaded_card = st.file_uploader("upload here", label_visibility="collapsed", type=["png", "jpeg", "jpg"])
-
-    if uploaded_card is not None:
-        user_home = os.path.expanduser("~")
-        save_path = os.path.join(user_home, "uploaded_cards", uploaded_card.name)
-        os.makedirs(os.path.join(user_home, "uploaded_cards"), exist_ok=True)
-
-        def save_card(uploaded_card, save_path):
-            with open(save_path, "wb") as f:
-                f.write(uploaded_card.getbuffer())
-
-        save_card(uploaded_card, save_path)
-
-        # Add your extraction logic here if needed
-
-        
-        def image_preview(image,res): 
-            for (bbox, text, prob) in res: 
-              # unpack the bounding box
-                (tl, tr, br, bl) = bbox
-                tl = (int(tl[0]), int(tl[1]))
-                tr = (int(tr[0]), int(tr[1]))
-                br = (int(br[0]), int(br[1]))
-                bl = (int(bl[0]), int(bl[1]))
-                cv2.rectangle(image, tl, br, (0, 255, 0), 2)
-                cv2.putText(image, text, (tl[0], tl[1] - 10),
-                cv2.FONT_HERSHEY_SIMPLEX, 0.7, (255, 0, 0), 2)
-            plt.rcParams['figure.figsize'] = (15,15)
-            plt.axis('off')
-            plt.imshow(image)
-        
-        # DISPLAYING THE UPLOADED CARD
-        col1,col2 = st.columns(2,gap="large")
-        with col1:
-            st.markdown("#     ")
-            st.markdown("#     ")
-            st.markdown("### You have uploaded the card")
-            st.image(uploaded_card)
-        # DISPLAYING THE CARD WITH HIGHLIGHTS
-        with col2:
-            st.markdown("#     ")
-            st.markdown("#     ")
-            with st.spinner("Please wait processing image..."):
-                st.set_option('deprecation.showPyplotGlobalUse', False)
-                saved_img = os.getcwd()+ "\\" + "uploaded_cards"+ "\\"+ uploaded_card.name
-                image = cv2.imread(saved_img)
-                res = reader.readtext(saved_img)
-                st.markdown("### Image Processed and Data Extracted")
-                st.pyplot(image_preview(image,res))  
-                
-            
-        #easy OCR
-        saved_img = os.getcwd()+ "\\" + "uploaded_cards"+ "\\"+ uploaded_card.name
-        result = reader.readtext(saved_img,detail = 0,paragraph=False)
-        
-        def postprocess_ocr(results):
-            processed_results = []
-            current_line = []
-
-            for text in results:
-                # You may need to adjust this threshold based on your specific case
-                if current_line and text.lower() != current_line[-1].lower() and text[0].isupper():
-                    processed_results.append(' '.join(current_line))
-                    current_line = [text]
-                else:
-                    current_line.append(text)
-
-            if current_line:
-                processed_results.append(' '.join(current_line))
-
-            return processed_results
-
-        # Usage
-        result = reader.readtext(saved_img, detail=0, paragraph=False)
-        processed_result = postprocess_ocr(result)
-       
-        
-        # CONVERTING IMAGE TO BINARY TO UPLOAD TO SQL DATABASE
-        def img_to_binary(file):
-            # Convert image data to binary format
-            with open(file, 'rb') as file:
-                binaryData = file.read()
-            return binaryData
-        
-        data = {"company_name" : [],
-                "card_holder" : [],
-                "designation" : [],
-                "mobile_number" :[],
-                "email" : [],
-                "website" : [],
-                "area" : [],
-                "city" : [],
-                "state" : [],
-                "pin_code" : [],
-                "image" : img_to_binary(saved_img)
-               }
-
-        def get_data(res):
-            for ind,i in enumerate(res):
-
-                # To get WEBSITE_URL
-                if "www " in i.lower() or "www." in i.lower():
-                    data["website"].append(i)
-                elif "WWW" in i:
-                    data["website"] = res[4] +"." + res[5]
-
-                # To get EMAIL ID
-                elif "@" in i:
-                    data["email"].append(i)
-
-                # To get MOBILE NUMBER
-                elif "-" in i:
-                    data["mobile_number"].append(i)
-                    if len(data["mobile_number"]) ==2:
-                        data["mobile_number"] = " & ".join(data["mobile_number"])
-
-                # To get COMPANY NAME  
-                elif ind == len(res)-1:
-                    data["company_name"].append(i)
-
-                # To get CARD HOLDER NAME
-                elif ind == 0:
-                    data["card_holder"].append(i)
-
-                # To get DESIGNATION
-                elif ind == 1:
-                    data["designation"].append(i)
-
-                # To get AREA
-                if re.findall('^[0-9].+, [a-zA-Z]+',i):
-                    data["area"].append(i.split(',')[0])
-                elif re.findall('[0-9] [a-zA-Z]+',i):
-                    data["area"].append(i)
-
-                # To get CITY NAME
-                match1 = re.findall('.+St , ([a-zA-Z]+).+', i)
-                match2 = re.findall('.+St,, ([a-zA-Z]+).+', i)
-                match3 = re.findall('^[E].*',i)
-                if match1:
-                    data["city"].append(match1[0])
-                elif match2:
-                    data["city"].append(match2[0])
-                elif match3:
-                    data["city"].append(match3[0])
-
-                # To get STATE
-                state_match = re.findall('[a-zA-Z]{9} +[0-9]',i)
-                if state_match:
-                     data["state"].append(i[:9])
-                elif re.findall('^[0-9].+, ([a-zA-Z]+);',i):
-                    data["state"].append(i.split()[-1])
-                if len(data["state"])== 2:
-                    data["state"].pop(0)
-
-                # To get PINCODE        
-                if len(i)>=6 and i.isdigit():
-                    data["pin_code"].append(i)
-                elif re.findall('[a-zA-Z]{9} +[0-9]',i):
-                    data["pin_code"].append(i[10:])
-        get_data(result)
-        
-        #FUNCTION TO CREATE DATAFRAME
-        def create_df(data):
-            df = pd.DataFrame(data)
-            return df
-        df = create_df(data)
-        st.success("### Data Extracted!")
-        st.write(df)
-        
-        if st.button("Upload to Database"):
-            for i,row in df.iterrows():
-                #here %S means string values 
-                sql = """INSERT INTO card_data(company_name,card_holder,designation,mobile_number,email,website,area,city,state,pin_code,image)
-                         VALUES (%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s)"""
-                #mycursor.execute(sql, tuple(row))
-                mycursor.execute(sql, tuple(row))
-                # the connection is not auto committed by default, so we must commit to save our changes
-                mydb.commit()
-            st.success("#### Uploaded to database successfully!")
-        
-# MODIFY MENU    
-if selected == "Modify":
-    col1,col2,col3 = st.columns([3,3,2])
-    col2.markdown("## Alter or Delete the data here")
-    column1,column2 = st.columns(2,gap="large")
+# Function to extract text from an image using pytesseract
+def image_to_text(path):
     try:
-        with column1:
-            mycursor.execute("SELECT card_holder FROM card_data")
-            result = mycursor.fetchall()
-            business_cards = {}
-            for row in result:
-                business_cards[row[0]] = row[0]
-            selected_card = st.selectbox("Select a card holder name to update", list(business_cards.keys()))
-            st.markdown("#### Update or modify any data below")
-            mycursor.execute("select company_name,card_holder,designation,mobile_number,email,website,area,city,state,pin_code from card_data WHERE card_holder=%s",
-                            (selected_card,))
-            result = mycursor.fetchone()
+        # Load image
+        input_img = Image.open(path)
+        # Resize image to a reasonable size for processing
+        input_img = input_img.resize((800, 600))
 
-            # DISPLAYING ALL THE INFORMATIONS
-            company_name = st.text_input("Company_Name", result[0])
-            card_holder = st.text_input("Card_Holder", result[1])
-            designation = st.text_input("Designation", result[2])
-            mobile_number = st.text_input("Mobile_Number", result[3])
-            email = st.text_input("Email", result[4])
-            website = st.text_input("Website", result[5])
-            area = st.text_input("Area", result[6])
-            city = st.text_input("City", result[7])
-            state = st.text_input("State", result[8])
-            pin_code = st.text_input("Pin_Code", result[9])
+        # Use pytesseract to extract text
+        text = pytesseract.image_to_string(input_img)
 
-            if st.button("Commit changes to DB"):
-                # Update the information for the selected business card in the database
-                mycursor.execute("""UPDATE card_data SET company_name=%s,card_holder=%s,designation=%s,mobile_number=%s,email=%s,website=%s,area=%s,city=%s,state=%s,pin_code=%s
-                                    WHERE card_holder=%s""", (company_name,card_holder,designation,mobile_number,email,website,area,city,state,pin_code,selected_card))
+        return text, input_img
+    except Exception as e:
+        st.error(f"An error occurred: {e}")
+        return None
+
+# Function to handle database operations
+def perform_database_operations(concat_df, input_img):
+    try:
+        # CONNECTING WITH POSTGRESQL DATABASE
+        connection_params = {
+            'host': "localhost",
+            'user': "postgres",
+            'password': "Sugu1234",
+            'database': "bizcard",
+            'port': "5432",
+        }
+
+        with psycopg2.connect(**connection_params) as mydb:
+            # Create a cursor
+            mycursor = mydb.cursor()
+
+
+            # Create table if not exists
+            create_table_query = '''
+            CREATE TABLE IF NOT EXISTS bizcard_details (
+                NAME varchar(225),
+                DESIGNATION varchar(225),
+                COMPANY_NAME varchar(225),
+                CONTACT varchar(225),
+                EMAIL text,
+                WEBSITE text,
+                ADDRESS text,
+                PINCODE varchar(225),
+                Image text
+            )'''
+            mycursor.execute(create_table_query)
+            mydb.commit()
+
+            # Insert data into the table
+            for index, row in concat_df.iterrows():
+                insert_query = '''
+                    INSERT INTO bizcard_details (NAME, DESIGNATION, COMPANY_NAME, CONTACT, EMAIL, WEBSITE, ADDRESS, PINCODE, Image)
+                    VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s)
+                '''
+                values = (
+                    row['NAME'], row['DESIGNATION'], row['COMPANY_NAME'], row['CONTACT'],
+                    row['EMAIL'], row['WEBSITE'], row['ADDRESS'], row['PINCODE'], row['Image']
+                )
+                mycursor.execute(insert_query, values)
                 mydb.commit()
-                st.success("Information updated in database successfully.")
 
-        with column2:
-            mycursor.execute("SELECT card_holder FROM card_data")
-            result = mycursor.fetchall()
-            business_cards = {}
-            for row in result:
-                business_cards[row[0]] = row[0]
-            selected_card = st.selectbox("Select a card holder name to Delete", list(business_cards.keys()))
-            st.write(f"### You have selected :green[**{selected_card}'s**] card to delete")
-            st.write("#### Proceed to delete this card?")
+            # Fetch data from the table
+            query = 'SELECT * FROM bizcard_details'
+            df_from_sql = pd.read_sql_query(query, mydb)
 
-            if st.button("Yes Delete Business Card"):
-                mycursor.execute(f"DELETE FROM card_data WHERE card_holder='{selected_card}'")
-                mydb.commit()
-                st.success("Business card information deleted from database.")
-    except:
-        st.warning("There is no data available in the database")
+        return df_from_sql
+
+    except psycopg2.Error as e:
+        st.error(f"PostgreSQL error: {e}")
+        return None
+
+# Function to extract text details from OCR output using pytesseract
+def extracted_text(text):
+    extrd_dict = {"NAME": [], "DESIGNATION": [], "COMPANY_NAME": [], "CONTACT": [], "EMAIL": [],
+                  "WEBSITE": [], "ADDRESS": [], "PINCODE": []}
     
-    if st.button("View updated data"):
-        mycursor.execute("select company_name,card_holder,designation,mobile_number,email,website,area,city,state,pin_code from card_data")
-        updated_df = pd.DataFrame(mycursor.fetchall(),columns=["Company_Name","Card_Holder","Designation","Mobile_Number","Email","Website","Area","City","State","Pin_Code"])
-        st.write(updated_df)
+    lines = text.split('\n')
+    extrd_dict["NAME"].append(lines[0])
+    extrd_dict["DESIGNATION"].append(lines[1])
+
+    for i in range(2, len(lines)):
+        if re.match(r'^[A-Za-z]', lines[i]):
+            extrd_dict["COMPANY_NAME"].append(lines[i])
+        elif lines[i].startswith("+") or (lines[i].replace("-", "").isdigit() and '-' in lines[i]):
+            extrd_dict["CONTACT"].append(lines[i])
+        elif "@" in lines[i] and ".com" in lines[i]:
+            small = lines[i].lower()
+            extrd_dict["EMAIL"].append(small)
+        elif "WWW" in lines[i] or "www" in lines[i] or "Www" in lines[i] or "wWw" in lines[i] or "wwW" in lines[i]:
+            small = lines[i].lower()
+            extrd_dict["WEBSITE"].append(small)
+        elif "Tamil Nadu" in lines[i] or "TamilNadu" in lines[i] or lines[i].isdigit():
+            extrd_dict["PINCODE"].append(lines[i])
+        elif re.match(r'^[A-Za-z]', lines[i]):
+            extrd_dict["COMPANY_NAME"].append(lines[i])
+        else:
+            remove_colon = re.sub(r'[,;]', '', lines[i])
+            extrd_dict["ADDRESS"].append(remove_colon)
+
+    for key, value in extrd_dict.items():
+        if len(value) > 0:
+            concadenate = ' '.join(value)
+            extrd_dict[key] = [concadenate]
+        else:
+            value = 'NA'
+            extrd_dict[key] = [value]
+
+    return extrd_dict
+
+# Streamlit Part
+
+# Set page configurations
+st.set_page_config(
+    page_title="Bizcard OCR App",
+    page_icon="📇",
+    layout="wide",
+    initial_sidebar_state="expanded",
+)
+
+#st.markdown("<div style='background-color: green;'></div>", unsafe_allow_html=True)
+st.title(" :blue[Extracting Business Card with OCR]")
+
+with st.sidebar:
+    select = st.radio("Menu", ["Home", "Upload & Modifying", "Delete"])
+
+if select == "Home":
+    st.markdown("### :blue[**Technologies Used :**] Python, Tesseract OCR, Streamlit, SQL, Pandas")
+    st.write("### :blue[**About :**] Bizcard is a Python application designed to extract information from business cards.")
+    st.write(
+        '### The main purpose of Bizcard is to automate the process of extracting key details from business card images, such as the name, designation, company, contact information, and other relevant data. By leveraging the power of OCR (Optical Character Recognition) provided by Tesseract OCR through pytesseract, Bizcard is able to extract text from the images.')
+
+elif select == "Upload & Modifying":
+    img = st.file_uploader("Upload the Image (Max size: 10 MB)", type=["png", "jpg", "jpeg"], accept_multiple_files=False, key="file_uploader")
+
+    if img is not None:
+        st.image(img, width=300)
+
+        with st.spinner("Processing Image..."):
+            text_image, input_img = image_to_text(img)
+            text_dict = extracted_text(text_image)
+
+        if text_dict:
+            st.success("TEXT IS EXTRACTED SUCCESSFULLY")
+
+    method = st.radio("Select the Option", ["None", "Preview", "Modify"])
+
+    if method == "None":
+        st.write("")
+
+    if method == "Preview":
+        df = pd.DataFrame(text_dict)
+        Image_bytes = io.BytesIO()
+
+        # Convert image to bytes before saving
+        if input_img is not None:
+            input_img.convert('RGB').save(Image_bytes, format="PNG")
+
+        image_data = Image_bytes.getvalue()
+        data = {"Image": [image_data]}
+        df_1 = pd.DataFrame(data)
+        concat_df = pd.concat([df, df_1], axis=1)
+        st.image(input_img, width=350)
+        st.dataframe(concat_df)
+
+    if method == "Modify":
+        col1, col2 = st.columns(2)
+        df = pd.DataFrame(text_dict)
+        Image_bytes = io.BytesIO()
+
+        # Convert image to bytes before saving
+        if input_img is not None:
+            input_img.convert('RGB').save(Image_bytes, format="PNG")
+
+        image_data = Image_bytes.getvalue()
+        data = {"Image": [image_data]}
+        df_1 = pd.DataFrame(data)
+        concat_df = pd.concat([df, df_1], axis=1)
+
+        with col1:
+            modify_name = st.text_input("Name", text_dict["NAME"][0])
+            modify_desig = st.text_input("Designation", text_dict["DESIGNATION"][0])
+            modify_company = st.text_input("Company_Name", text_dict["COMPANY_NAME"][0])
+            modify_contact = st.text_input("Contact", text_dict["CONTACT"][0])
+
+            concat_df["NAME"] = modify_name
+            concat_df["DESIGNATION"] = modify_desig
+            concat_df["COMPANY_NAME"] = modify_company
+            concat_df["CONTACT"] = modify_contact
+
+        with col2:
+            modify_email = st.text_input("Email", text_dict["EMAIL"][0])
+            modify_web = st.text_input("Website", text_dict["WEBSITE"][0])
+            modify_address = st.text_input("Address", text_dict["ADDRESS"][0])
+            modify_pincode = st.text_input("Pincode", text_dict["PINCODE"][0])
+
+            concat_df["EMAIL"] = modify_email
+            concat_df["WEBSITE"] = modify_web
+            concat_df["ADDRESS"] = modify_address
+            concat_df["PINCODE"] = modify_pincode
+
+        col1, col2 = st.columns(2)
+        with col1:
+            button3 = st.button("Save", use_container_width=True)
+
+        if button3:
+            df_from_sql = perform_database_operations(concat_df, input_img)
+
+            if df_from_sql is not None and not df_from_sql.empty:
+                st.dataframe(df_from_sql)
+                st.success("Saved Successfully")
+
+if select == "Delete":
+    mydb = psycopg2.connect(
+        host="localhost",
+        user="postgres",
+        password="Sugu1234",
+        database="bizcard",
+        port="5432",
+    )  # Connecting to PostgreSQL server
+
+    mycursor = mydb.cursor()
+
+    col1, col2 = st.columns(2)
+    with col1:
+        mycursor.execute("SELECT NAME FROM bizcard_details")
+        mydb.commit()
+        table1 = mycursor.fetchall()
+
+        names = []
+
+        for i in table1:
+            names.append(i[0])
+
+        name_select = st.selectbox("Select the Name", options=names)
+
+    with col2:
+        mycursor.execute(
+            "SELECT DESIGNATION FROM bizcard_details WHERE NAME = %s", (name_select,)
+        )
+        mydb.commit()
+        table2 = mycursor.fetchall()
+
+        designations = []
+
+        for j in table2:
+            designations.append(j[0])
+
+        designation_select = st.selectbox(
+            "Select the Designation", options=designations
+        )
+
+    if name_select and designation_select:
+        col1, col2, col3 = st.columns(3)
+
+        with col1:
+            st.write(f"Selected Name: {name_select}")
+            st.write("")
+            st.write("")
+            st.write(f"Selected Designation: {designation_select}")
+
+        with col2:
+            st.write("")
+            st.write("")
+            st.write("")
+            st.write("")
+            remove = st.button("Delete", use_container_width=True)
+
+
+            if remove:
+                try:
+                    delete_query = "DELETE FROM bizcard_details WHERE NAME = %s AND DESIGNATION = %s"
+                    delete_values = (name_select, designation_select)
+
+                    mycursor.execute(delete_query, delete_values)
+                    mydb.commit()
+
+                    st.warning("Record Deleted Successfully")
+                except psycopg2.Error as e:
+                    st.error(f"PostgreSQL error: {e}")
