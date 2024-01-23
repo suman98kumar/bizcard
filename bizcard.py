@@ -123,6 +123,7 @@ def extracted_text(text):
 
 # Streamlit Part
 
+
 # Set page configurations
 st.set_page_config(
     page_title="Bizcard OCR App",
@@ -131,11 +132,81 @@ st.set_page_config(
     initial_sidebar_state="expanded",
 )
 
-#st.markdown("<div style='background-color: green;'></div>", unsafe_allow_html=True)
-st.title(" :blue[Extracting Business Card with OCR]")
+# Custom CSS for styling
+custom_styles = """
+<style>
+    body {
+        background-color: #f2f2f2;
+        font-family: 'Arial, sans-serif';
+    }
+
+    .sidebar .sidebar-content {
+        background-color: #333333;
+        color: white;
+    }
+
+    .title {
+        font-size: 48px;
+        font-weight: bold;
+        color: #ffffff;
+        background-color: #009688;
+        text-align: center;
+        padding: 20px;
+        border-radius: 10px;
+        margin-bottom: 20px;
+    }
+
+    .menu-radio {
+        color: #009688;
+        font-size: 20px;
+    }
+
+    .upload-section {
+        margin-top: 20px;
+    }
+
+    .process-image {
+        margin-top: 20px;
+    }
+
+    .preview-section {
+        margin-top: 20px;
+    }
+
+    .modify-section {
+        margin-top: 20px;
+    }
+
+    .save-button {
+        background-color: #009688;
+        color: white;
+        font-size: 16px;
+        border-radius: 5px;
+        margin-top: 20px;
+    }
+
+    .delete-section {
+        margin-top: 20px;
+    }
+
+    .delete-button {
+        background-color: #FF6347;
+        color: white;
+        font-size: 16px;
+        border-radius: 5px;
+        margin-top: 20px;
+    }
+</style>
+"""
+
+# Apply custom styles
+st.markdown(custom_styles, unsafe_allow_html=True)
+
+# Display the custom-styled title using Markdown
+st.markdown("<div class='title'>EXTRACTING BUSINESS CARD DATA WITH 'OCR'</div>", unsafe_allow_html=True)
 
 with st.sidebar:
-    select = st.radio("Menu", ["Home", "Upload & Modifying", "Delete"])
+    select = st.radio("Menu", ["Home", "Upload & Modifying", "Delete"], key="menu")
 
 if select == "Home":
     st.markdown("### :blue[**Technologies Used :**] Python, Tesseract OCR, Streamlit, SQL, Pandas")
@@ -147,7 +218,7 @@ elif select == "Upload & Modifying":
     img = st.file_uploader("Upload the Image (Max size: 10 MB)", type=["png", "jpg", "jpeg"], accept_multiple_files=False, key="file_uploader")
 
     if img is not None:
-        st.image(img, width=300)
+        st.image(img, width=300, caption="Uploaded Image")
 
         with st.spinner("Processing Image..."):
             text_image, input_img = image_to_text(img)
@@ -156,7 +227,7 @@ elif select == "Upload & Modifying":
         if text_dict:
             st.success("TEXT IS EXTRACTED SUCCESSFULLY")
 
-    method = st.radio("Select the Option", ["None", "Preview", "Modify"])
+    method = st.radio("Select the Option", ["None", "Preview", "Modify"], key="upload_method")
 
     if method == "None":
         st.write("")
@@ -173,7 +244,7 @@ elif select == "Upload & Modifying":
         data = {"Image": [image_data]}
         df_1 = pd.DataFrame(data)
         concat_df = pd.concat([df, df_1], axis=1)
-        st.image(input_img, width=350)
+        st.image(input_img, width=350, caption="Preview Image")
         st.dataframe(concat_df)
 
     if method == "Modify":
@@ -214,7 +285,7 @@ elif select == "Upload & Modifying":
 
         col1, col2 = st.columns(2)
         with col1:
-            button3 = st.button("Save", use_container_width=True)
+            button3 = st.button("Save", use_container_width=True, key="save_button")
 
         if button3:
             df_from_sql = perform_database_operations(concat_df, input_img)
@@ -277,8 +348,7 @@ if select == "Delete":
             st.write("")
             st.write("")
             st.write("")
-            remove = st.button("Delete", use_container_width=True)
-
+            remove = st.button("Delete", use_container_width=True, key="delete_button")
 
             if remove:
                 try:
